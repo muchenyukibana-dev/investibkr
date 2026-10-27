@@ -24,13 +24,12 @@ col1, col2 = st.columns(2)
 with col1:
     total_v0 = st.number_input("Total Portfolio Value ($)", value=100000.0, step=1000.0, format="%.2f")
 with col2:
-    target_rate = st.number_input("Target Stock Allocation (%)", value=60.0, step=1.0, format="%.2f") / 100.0
-
+    target_rate = st.number_input("Target Stock Allocation (%)", value=60, step=1) / 100.0
 st.markdown("---")
 
 # Multi-stock holdings input (up to 30 stocks)
 st.subheader("2. Stock Holdings Breakdown (Max 30 Stocks)")
-st.markdown("Add, edit, or remove your individual stock holdings below. The total stock value will be updated automatically.")
+st.markdown("Add, edit, or remove your individual stock holdings below. Remember to press **Enter** after typing a number so it saves successfully.")
 
 # Initialize session state for stocks if not present
 if "stocks_df" not in st.session_state:
@@ -39,11 +38,19 @@ if "stocks_df" not in st.session_state:
         {"Stock Name / Ticker": "MSFT", "Current Value ($)": 15000.0}
     ])
 
-# Use st.data_editor to allow adding, editing, and deleting rows dynamically
+# Use st.data_editor with NumberColumn configuration to prevent validation errors
 edited_df = st.data_editor(
     st.session_state.stocks_df,
     num_rows="dynamic",
     use_container_width=True,
+    column_config={
+        "Current Value ($)": st.column_config.NumberColumn(
+            "Current Value ($)",
+            min_value=0.0,
+            step=100.0,
+            format="$%.2f",
+        )
+    },
     key="stock_editor"
 )
 
