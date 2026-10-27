@@ -2,155 +2,205 @@ import streamlit as st
 import pandas as pd
 import math
 
-st.set_page_config(page_title="Portfolio Position Rebalancer", page_icon="📈", layout="centered")
+st.set_page_config(page_title="Multi-Asset Portfolio Rebalancer", page_icon="📈", layout="wide")
 
-st.title("📈 智能仓位调整计算器 (多股票异构定投)")
-st.markdown("支持自定义每支股票的当前持仓及**不同的每期定投金额**，精准追踪整体仓位与各股票占比。")
+st.title("📈 Multi-Asset Portfolio Rebalancing Calculator")
+st.markdown("Calculate individual fund/stock contribution amounts and periods under constant price assumptions.")
 
-# 1. 模式选择
+# 1. General Portfolio Settings
+st.subheader("1. General Portfolio Settings")
+col_v1, col_v2 = st.columns(2)
+with col_v1:
+    total_v0 = st.number_input("Total Initial Portfolio Value ($)", value=100000.0, step=1000.0, format="%.2f")
+
+# 2. Mode Selection
 calc_mode = st.radio(
-    "选择计算模式", 
+    "Select Calculation Mode", 
     [
-        "模式一：指定总期数 ➔ 计算总定投及各股票分配", 
-        "模式二：指定各股票每期定投金额 ➔ 计算所需总期数"
+        "Mode 1: Given Investment Amount per Fund ➔ Calculate Required Periods", 
+        "Mode 2: Given Target Periods ➔ Calculate Required Amount per Fund"
     ]
 )
 
 st.markdown("---")
 
-# 2. 基础参数
-st.subheader("1. 总体资产设置")
-col1, col2 = st.columns(2)
-with col1:
-    total_v0 = st.number_input("目前总持仓金额 ($)", value=100000.0, step=1000.0, format="%.2f")
-with col2:
-    target_rate = st.number_input("目标股票仓位比例 (%)", value=60, step=1) / 100.0
+# 3. Multi-Asset Table Input
+st.subheader("2. Stock / Fund Holdings Breakdown (Max 30 Assets)")
+st.markdown("""
+* **Current Value ($)**: Initial value of each asset.
+* **Target Ratio (%)**: Expected percentage of this asset relative to the **Total Final Portfolio Value**.
+* **Amount/Period ($)** (Mode 1 only): Planned investment for each asset per period.
+""")
 
-st.markdown("---")
-
-# 3. 多股票持仓与定投设置
-st.subheader("2. 股票持仓与异构定投明细 (最多30支)")
-st.markdown("在此处编辑每支股票的**当前价值**以及**各自每期的定投金额**（每支股票可以设为不同的金额）。记得修改后按 **Enter** 确认保存。")
-
-if "stocks_df" not in st.session_state:
-    st.session_state.stocks_df = pd.DataFrame([
-        {"Stock Ticker": "AAPL", "Current Value ($)": 15000.0, "Periodic Investment ($)": 2000.0},
-        {"Stock Ticker": "MSFT", "Current Value ($)": 15000.0, "Periodic Investment ($)": 3000.0}
+# Initialize DataFrame session state if not existing
+if "funds_df" not in st.session_state:
+    st.session_state.funds_df = pd.DataFrame([
+        {"Ticker / Name": "QQQ", "Current Value ($)": 15000.0, "Target Ratio (%)": 25.0, "Amount/Period ($)": 3000.0},
+        {"Ticker / Name": "VOO", "Current Value ($)": 15000.0, "Target Ratio (%)": 35.0, "Amount/Period ($)": 4500.0}
     ])
 
+# Column configuration based on mode
+column_config = {
+    "Current Value ($)": st.column_config.NumberColumn("Current Value ($)", min_value=0.0, step=100.0, format="$%.2f"),
+    "Target Ratio (%)": st.column_config.NumberColumn("Target Ratio (%)", min_value=0.0, max_value=100.0, step=1.0, format="%.2f%%"),
+}
+
+if "Mode 1" in calc_mode:
+    column_config["Amount/Period ($)"] = st.column_config.NumberColumn("Amount/Period ($)", min_value=0.0, step=100.0, format="$%.2f")
+    disabled_cols = []
+else:
+    # In Mode 2, Amount/Period is calculated automatically
+    column_config["Amount/Period ($)"] = st.column_config.NumberColumn("Amount/Period ($) [Auto]", disabled=True, format="$%.2f")
+    disabled_cols = ["Amount/Period ($)"]
+
 edited_df = st.data_editor(
-    st.session_state.stocks_df,
+    st.session_state.funds_df,
     num_rows="dynamic",
     use_container_width=True,
-    column_config={
-        "Current Value ($)": st.column_config.NumberColumn("Current Value ($)", min_value=0.0, step=100.0, format="$%.2f"),
-        "Periodic Investment ($)": st.column_config.NumberColumn("Periodic Investment ($)", min_value=0.0, step=50.0, format="$%.2f")
-    },
-    key="stock_editor"
+    column_config=column_config,
+    disabled=disabled_cols,
+    key="fund_editor"
 )
 
+# Enforce max 30 assets
 if len(edited_df) > 30:
-    st.warning("⚠️ 已超过最多30支股票的限制，系统已自动截取前30支。")
+    st.warning("⚠️ Maximum 30 assets supported. The list has been trimmed.")
     edited_df = edited_df.head(30)
 
-st.session_state.stocks_df = edited_df
+st.session_state.funds_df = edited_df
 
-# 统计当前股票总市值与当前仓位
+# Summary stats from table
 stock_s0 = edited_df["Current Value ($)"].sum()
-current_rate = stock_s0 / total_v0 if total_v0 > 0 else 0
+total_target_rate = edited_df["Target Ratio (%)"].sum() / 100.0
+current_stock_rate = stock_s0 / total_v0 if total_v0 > 0 else 0.0
 
-# 显示实时汇总指标
-m1, m2, m3 = st.columns(3)
-m1.metric("当前股票总市值", f"${stock_s0:,.2f}")
-m2.metric("当前股票总仓位", f"{current_rate * 100:.2f}%")
-m3.metric("当前股票种数", f"{len(edited_df)} 支")
+col_m1, col_m2, col_m3 = st.columns(3)
+col_m1.metric("Current Total Stock Value", f"${stock_s0:,.2f}")
+col_m2.metric("Current Stock Allocation", f"{current_stock_rate * 100:.2f}%")
+col_m3.metric("Target Total Stock Allocation", f"{total_target_rate * 100:.2f}%")
 
 st.markdown("---")
 
-if "模式一" in calc_mode:
-    periods = st.number_input("计划总投入期数 (期)", value=10, min_value=1, step=1)
+# 4. Mode-specific input
+if "Mode 2" in calc_mode:
+    periods = st.number_input("Target Investment Periods (Periods)", value=10, min_value=1, step=1)
 
-if st.button("开始计算", type="primary", use_container_width=True):
+# 5. Execution & Calculation
+if st.button("Start Calculation", type="primary", use_container_width=True):
+    # Validations
     if total_v0 <= 0:
-        st.error("目前总持仓金额必须大于 0。")
-    elif stock_s0 < 0:
-        st.error("股票持仓金额不能为负数。")
-    elif target_rate <= 0 or target_rate >= 1:
-        st.error("目标仓位必须在 0% 到 100% 之间。")
-    elif stock_s0 > total_v0:
-        st.error("股票总市值不能超过总持仓金额。")
-    elif current_rate >= target_rate:
-        st.warning(f"⚠️ 当前股票仓位 ({current_rate*100:.2f}%) 已经达到或超过目标仓位 ({target_rate*100:.2f}%)，无需调整！")
+        st.error("Total initial portfolio value must be greater than 0.")
+        st.stop()
+    if stock_s0 > total_v0:
+        st.error("Total initial stock value cannot exceed total portfolio value.")
+        st.stop()
+    if total_target_rate <= 0 or total_target_rate >= 1.0:
+        st.error("The sum of Target Ratios (%) across all funds must be between 0% and 100%.")
+        st.stop()
+    if current_stock_rate >= total_target_rate:
+        st.warning(f"⚠️ Current total stock allocation ({current_stock_rate*100:.2f}%) has already met or exceeded the target allocation ({total_target_rate*100:.2f}%).")
+        st.stop()
+
+    df = edited_df.copy()
+    
+    if "Mode 1" in calc_mode:
+        # Mode 1: Given amounts per period -> calculate required periods N
+        total_m = df["Amount/Period ($)"].sum()
+        if total_m <= 0:
+            st.error("Total investment amount per period across all funds must be greater than 0.")
+            st.stop()
+
+        req_periods = []
+        for idx, row in df.iterrows():
+            r_i = row["Target Ratio (%)"] / 100.0
+            s_i0 = row["Current Value ($)"]
+            m_i = row["Amount/Period ($)"]
+            
+            denom = m_i - r_i * total_m
+            if denom <= 0:
+                # If contribution is too low compared to target weight, target cannot be reached smoothly
+                n_i = 999
+            else:
+                n_i = (r_i * total_v0 - s_i0) / denom
+            req_periods.append(max(0, n_i))
+
+        df["Required Periods (Exact)"] = req_periods
+        max_p = math.ceil(max(req_periods)) if max(req_periods) < 999 else 0
+        
+        if max_p == 0:
+            st.error("Selected per-period contribution amounts are insufficient to achieve target ratios. Please increase amounts.")
+            st.stop()
+            
+        p = max_p
+        amt_per_period = total_m
+
     else:
-        stock_invests = edited_df["Periodic Investment ($)"].tolist()
-        sum_stock_invests = sum(stock_invests)
-
-        if "模式一" in calc_mode:
-            # 模式一：指定期数 N，根据目标计算总股票需求，并按各股票定投金额比例分配权重
-            total_need = (target_rate * total_v0 - stock_s0) / (1 - target_rate)
-            if sum_stock_invests <= 0:
-                st.error("每期各股票定投金额之和必须大于 0。")
-                st.stop()
-            weights = [inv / sum_stock_invests for inv in stock_invests]
-            p = periods
-            total_invest = total_need
-            amt_per_period = total_invest / p
-        else:
-            # 模式二：指定每期金额（由表格各项定投金额直接相加），计算所需期数 N
-            if sum_stock_invests <= 0:
-                st.error("每期各股票定投金额之和必须大于 0。")
-                st.stop()
-            amt_per_period = sum_stock_invests
-            exact_periods = (target_rate * total_v0 - stock_s0) / (amt_per_period * (1 - target_rate))
-            p = math.ceil(exact_periods)
-            total_invest = amt_per_period * p
-            weights = [inv / sum_stock_invests for inv in stock_invests]
-
-        final_v = total_v0 + total_invest
-        final_s = stock_s0 + total_invest
-        final_rate = (final_s / final_v) * 100
-
-        st.success("✅ 计算成功！")
+        # Mode 2: Given periods N -> calculate required amount for each fund
+        p = int(periods)
+        # Final Total Portfolio Value VN = (V0 - S0) / (1 - R_target)
+        final_v_target = (total_v0 - stock_s0) / (1.0 - total_target_rate)
         
-        res1, res2, res3 = st.columns(3)
-        res1.metric("每期总定投金额", f"${amt_per_period:,.2f}")
-        res2.metric("总计投入期数", f"${p} 期" if isinstance(p, int) else f"{p}")
-        res3.metric("最终达成仓位", f"{final_rate:.2f}%")
+        calculated_m = []
+        for idx, row in df.iterrows():
+            r_i = row["Target Ratio (%)"] / 100.0
+            s_i0 = row["Current Value ($)"]
+            s_i_target = r_i * final_v_target
+            m_i = (s_i_target - s_i0) / p
+            calculated_m.append(max(0.0, m_i))
 
-        st.info(f"• 补充总本金: **${total_invest:,.2f}**  \n• 期末总资产: **${final_v:,.2f}**（其中期末股票市值: ${final_s:,.2f}）")
+        df["Amount/Period ($)"] = calculated_m
+        amt_per_period = sum(calculated_m)
 
-        # 逐期推演表格
-        st.subheader("📋 逐期仓位与各股票明细推演")
-        table_data = []
-        curr_v = total_v0
-        curr_s = stock_s0
-        
-        for i in range(1, p + 1):
-            curr_v += amt_per_period
-            curr_s += amt_per_period
-            r = (curr_s / curr_v) * 100
-            table_data.append({
-                "Period": f"Period {i}",
-                "Total Investment ($)": f"${amt_per_period:,.2f}",
-                "End Stock Value ($)": f"${curr_s:,.2f}",
-                "End Total Value ($)": f"${curr_v:,.2f}",
-                "End Allocation (%)": f"{r:.2f}%"
-            })
-        
-        st.table(table_data)
+    # Global Final Results
+    total_invest = amt_per_period * p
+    final_v = total_v0 + total_invest
+    final_s = stock_s0 + total_invest
+    final_rate = (final_s / final_v) * 100
 
-        # 各股票最终市值与期末占比展示
-        st.subheader("📊 各股票期末预估市值与占比明细")
-        initial_values = edited_df["Current Value ($)"].tolist()
-        tickers = edited_df["Stock Ticker"].tolist()
+    st.success("✅ Calculation Successful!")
+
+    res_col1, res_col2, res_col3 = st.columns(3)
+    res_col1.metric("Total Suggested Amount / Period", f"${amt_per_period:,.2f}")
+    res_col2.metric("Total Required Periods", f"{p}")
+    res_col3.metric("Final Total Stock Allocation", f"{final_rate:.2f}%")
+
+    st.info(f"• Total Additional Capital: **${total_invest:,.2f}**  \n• Final Total Portfolio Value: **${final_v:,.2f}** (Final Stock Value: **${final_s:,.2f}**)")
+
+    # Per-Asset Final Allocation Breakdown Table
+    st.subheader("📊 Individual Asset Breakdown at End of Schedule")
+    asset_summary = []
+    for idx, row in df.iterrows():
+        s_i0 = row["Current Value ($)"]
+        m_i = row["Amount/Period ($)"]
+        s_i_end = s_i0 + m_i * p
+        r_i_end = (s_i_end / final_v) * 100
         
-        final_stock_values = [init_v + (total_invest * w) for init_v, w in zip(initial_values, weights)]
-        
-        stock_summary_df = pd.DataFrame({
-            "Stock Ticker": tickers,
-            "Initial Value ($)": initial_values,
-            "Total Added ($)": [total_invest * w for w in weights],
-            "Final Value ($)": final_stock_values,
-            "Final Portfolio Share (%)": [f"{(val / final_v) * 100:.2f}%" for val in final_stock_values]
+        asset_summary.append({
+            "Asset / Ticker": row["Ticker / Name"],
+            "Initial Value ($)": f"${s_i0:,.2f}",
+            "Amount / Period ($)": f"${m_i:,.2f}",
+            "Total Injected ($)": f"${m_i * p:,.2f}",
+            "Final Value ($)": f"${s_i_end:,.2f}",
+            "Target Ratio (%)": f"{row['Target Ratio (%)']:.2f}%",
+            "Final Actual Ratio (%)": f"{r_i_end:.2f}%"
         })
-        st.table(stock_summary_df)
+    st.table(asset_summary)
+
+    # Period-by-Period Portfolio Schedule
+    st.subheader("📋 Overall Portfolio Period-by-Period Schedule")
+    table_data = []
+    curr_v = total_v0
+    curr_s = stock_s0
+    for i in range(1, p + 1):
+        curr_v += amt_per_period
+        curr_s += amt_per_period
+        r = (curr_s / curr_v) * 100
+        table_data.append({
+            "Period": f"Period {i}",
+            "Total Investment ($)": f"${amt_per_period:,.2f}",
+            "End Stock Value ($)": f"${curr_s:,.2f}",
+            "End Total Value ($)": f"${curr_v:,.2f}",
+            "End Allocation (%)": f"{r:.2f}%"
+        })
+    
+    st.table(table_data)
