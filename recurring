@@ -1,0 +1,193 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+import math
+
+class PositionCalculatorApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("仓位调整计算器")
+        self.root.geometry("620 x 680")
+        self.root.resizable(True, True)
+
+        # 模式变量: "mode_amount" (求每期金额) 或 "mode_periods" (求投入期数)
+        self.calc_mode = tk.StringVar(value="mode_amount")
+
+        self._build_ui()
+
+    def _build_ui(self):
+        # 1. 顶部模式选择 (Tab/Radio)
+        mode_frame = ttk.LabelFrame(self.root, text="计算模式", padding=10)
+        mode_frame.pack(fill="x", padx=15, pady=10)
+
+        r1 = ttk.Radiobutton(
+            mode_frame, 
+            text="模式一：指定期数 ➔ 计算每期应投金额", 
+            value="mode_amount", 
+            variable=self.calc_mode,
+            command=self._on_mode_change
+        )
+        r1.pack(anchor="w", pady=2)
+
+        r2 = ttk.Radiobutton(
+            mode_frame, 
+            text="模式二：指定每期金额 ➔ 计算所需总期数", 
+            value="mode_periods", 
+            variable=self.calc_mode,
+            command=self._on_mode_change
+        )
+        r2.pack(anchor="w", pady=2)
+
+        # 2. 输入参数区域
+        input_frame = ttk.LabelFrame(self.root, text="基础参数输入", padding=10)
+        input_frame.pack(fill="x", padx=15, pady=5)
+
+        # 目前总持仓金额 V0
+        ttk.Label(input_frame, text="目前总持仓金额 (元):").grid(row=0, column=0, sticky="w", pady=5)
+        self.entry_v0 = ttk.Entry(input_frame)
+        self.entry_v0.insert(0, "100000")
+        self.entry_v0.grid(row=0, column=1, sticky="ew", padx=10, pady=5)
+
+        # 当前股票持仓金额 S0
+        ttk.Label(input_frame, text="当前股票持仓金额 (元):").grid(row=1, column=0, sticky="w", pady=5)
+        self.entry_s0 = ttk.Entry(input_frame)
+        self.entry_s0.insert(0, "30000")
+        self.entry_s0.grid(row=1, column=1, sticky="ew", padx=10, pady=5)
+
+        # 目标仓位比例
+        ttk.Label(input_frame, text="目标股票仓位比例 (%):").grid(row=2, column=0, sticky="w", pady=5)
+        self.entry_target_rate = ttk.Entry(input_frame)
+        self.entry_target_rate.insert(0, "60")
+        self.entry_target_rate.grid(row=2, column=1, sticky="ew", padx=10, pady=5)
+
+        # 动态输入字段 (期数 或 每期金额)
+        self.lbl_dynamic = ttk.Label(input_frame, text="计划投入期数 (期):")
+        self.lbl_dynamic.grid(row=3, column=0, sticky="w", pady=5)
+        self.entry_dynamic = ttk.Entry(input_frame)
+        self.entry_dynamic.insert(0, "10")
+        self.entry_dynamic.grid(row=3, column=1, sticky="ew", padx=10, pady=5)
+
+        input_frame.columnconfigure(1, weight=1)
+
+        # 3. 计算按钮
+        btn_calc = ttk.Button(self.root, text="开始计算", command=self.calculate)
+        btn_calc.pack(fill="x", padx=15, pady=10)
+
+        # 4. 结果展示卡片
+        self.result_frame = ttk.LabelFrame(self.root, text="计算结果总结", padding=10)
+        self.result_frame.pack(fill="x", padx=15, pady=5)
+
+        self.lbl_result_summary = ttk.Label(self.result_frame, text="请填写参数后点击“开始计算”", font=("Helvetica", 10, "bold"), foreground="#0066cc")
+        self.lbl_result_summary.pack(anchor="w")
+
+        # 5. 逐期推演表格
+        table_frame = ttk.LabelFrame(self.root, text="逐期仓位推演明细", padding=10)
+        table_frame.pack(fill="both", expand=True, padx=15, pady=10)
+
+        columns = ("period", "invest", "stock_val", "total_val", "rate")
+        self.tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=8)
+        
+        self.tree.heading("period", text="期数")
+        self.tree.heading("invest", text="本期投入(元)")
+        self.tree.heading("stock_val", text="期末股票持仓(元)")
+        self.tree.heading("total_val", text="期末总资产(元)")
+        self.tree.heading("rate", text="期末仓位(%)")
+
+        self.tree.column("period", width=60, anchor="center")
+        self.tree.column("invest", width=110, anchor="e")
+        self.tree.column("stock_val", width=120, anchor="e")
+        self.tree.column("total_val", width=120, anchor="e")
+        self.tree.column("rate", width=90, anchor="center")
+
+        scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scrollbar.set)
+        
+        self.tree.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+    def _on_mode_change(self):
+        if self.calc_mode.get() == "mode_amount":
+            self.lbl_dynamic.config(text="计划投入期数 (期):")
+            self.entry_dynamic.delete(0, tk.END)
+            self.entry_dynamic.insert(0, "10")
+        else:
+            self.lbl_dynamic.config(text="每期计划投入 (元):")
+            self.entry_dynamic.delete(0, tk.END)
+            self.entry_dynamic.insert(0, "7500")
+
+    def calculate(self):
+        try:
+            v0 = float(self.entry_v0.get())
+            s0 = float(self.entry_s0.get())
+            target_rate = float(self.entry_target_rate.get()) / 100.0
+            dynamic_val = float(self.entry_dynamic.get())
+
+            if v0 <= 0 or s0 < 0:
+                messagebox.showerror("输入错误", "持仓总额必须大于0，股票持仓不能为负。")
+                return
+            if target_rate <= 0 or target_rate >= 1:
+                messagebox.showerror("输入错误", "目标仓位比例必须在 0% 到 100% 之间。")
+                return
+            if dynamic_val <= 0:
+                messagebox.showerror("输入错误", "输入的期数或每期金额必须大于0。")
+                return
+
+            current_rate = s0 / v0
+            if current_rate >= target_rate:
+                messagebox.showinfo("提示", f"当前股票仓位 ({current_rate*100:.2f}%) 已达到或超过目标仓位 ({target_rate*100:.2f}%)，无需额外建仓！")
+                return
+
+            # 计算逻辑
+            if self.calc_mode.get() == "mode_amount":
+                # 已知期数 N，求每期金额 M
+                periods = int(dynamic_val)
+                # 公式: M = (r_target * V0 - S0) / (N * (1 - r_target))
+                total_need = (target_rate * v0 - s0) / (1 - target_rate)
+                amount_per_period = total_need / periods
+            else:
+                # 已知每期金额 M，求期数 N
+                amount_per_period = dynamic_val
+                # 公式: N = (r_target * V0 - S0) / (M * (1 - r_target))
+                exact_periods = (target_rate * v0 - s0) / (amount_per_period * (1 - target_rate))
+                periods = math.ceil(exact_periods) # 向上取整
+
+            total_invest = amount_per_period * periods
+            final_v = v0 + total_invest
+            final_s = s0 + total_invest
+            final_rate = (final_s / final_v) * 100
+
+            # 更新卡片结果
+            summary_text = (
+                f"【计算成功】\n"
+                f"• 每期建议投入: {amount_per_period:,.2f} 元\n"
+                f"• 总计投入期数: {periods} 期\n"
+                f"• 总共需再追加: {total_invest:,.2f} 元\n"
+                f"• 期末资产总计: {final_v:,.2f} 元 (股票持仓: {final_s:,.2f} 元)\n"
+                f"• 最终达成仓位: {final_rate:.2f}% (目标: {target_rate*100:.2f}%)"
+            )
+            self.lbl_result_summary.config(text=summary_text)
+
+            # 更新推演表格
+            for row in self.tree.get_children():
+                self.tree.delete(row)
+
+            curr_v = v0
+            curr_s = s0
+            for i in range(1, periods + 1):
+                curr_v += amount_per_period
+                curr_s += amount_per_period
+                r = (curr_s / curr_v) * 100
+                self.tree.insert("", "end", values=(
+                    f"第 {i} 期",
+                    f"{amount_per_period:,.2f}",
+                    f"{curr_s:,.2f}",
+                    f"{curr_v:,.2f}",
+                    f"{r:.2f}%"
+                ))
+
+        except ValueError:
+            messagebox.showerror("输入错误", "请输入有效的数字！")
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = PositionCalculatorApp(root)
+    root.mainloop()
