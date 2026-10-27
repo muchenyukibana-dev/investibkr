@@ -2,118 +2,162 @@ import streamlit as st
 import pandas as pd
 import math
 
-# 设置页面配置
+# 页面基础配置
 st.set_page_config(
-    page_title="Multi-Asset Independent Rebalancer", 
+    page_title="Portfolio Rebalancing Vision", 
     page_icon="🔮", 
     layout="wide"
 )
 
 # -----------------------------------------------------------------------------
-# 注入视觉设计 CSS (弥散渐变光影 + 玻璃拟态风格)
+# 深度定制 CSS：解决白底、文字不清、缺乏主视觉的问题（逻辑代码保持完全不变）
 # -----------------------------------------------------------------------------
 st.markdown("""
 <style>
-    /* 引入时尚高品质科技字体 */
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700;800&display=swap');
 
     html, body, [data-testid="stAppViewContainer"] {
         font-family: 'Plus Jakarta Sans', sans-serif !important;
-        background-color: #0b0c16 !important;
+        background-color: #070913 !important;
         background-image: 
-            radial-gradient(at 10% 10%, rgba(112, 0, 255, 0.25) 0px, transparent 50%),
-            radial-gradient(at 90% 20%, rgba(0, 242, 254, 0.20) 0px, transparent 50%),
-            radial-gradient(at 50% 80%, rgba(232, 28, 255, 0.18) 0px, transparent 50%),
-            radial-gradient(at 80% 90%, rgba(64, 201, 255, 0.15) 0px, transparent 50%);
+            radial-gradient(at 15% 10%, rgba(112, 0, 255, 0.3) 0px, transparent 45%),
+            radial-gradient(at 85% 15%, rgba(0, 242, 254, 0.25) 0px, transparent 45%),
+            radial-gradient(at 50% 75%, rgba(232, 28, 255, 0.2) 0px, transparent 50%);
         background-attachment: fixed;
-        color: #e2e8f0 !important;
+        color: #f1f5f9 !important;
     }
 
-    /* 隐藏主菜单与页脚 */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {background: transparent !important;}
 
-    /* 主标题科技炫彩渐变 */
-    .glow-title {
-        font-size: 2.6rem;
+    /* 1. 主视觉 Hero Banner 样式（解决缺乏大图视觉的问题） */
+    .hero-container {
+        position: relative;
+        width: 100%;
+        height: 220px;
+        background: linear-gradient(135deg, rgba(30, 27, 75, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%),
+                    radial-gradient(circle at 70% 30%, rgba(0, 242, 254, 0.4) 0%, transparent 60%);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 20px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: flex-start;
+        padding: 0 3rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        overflow: hidden;
+    }
+    .hero-container::before {
+        content: '';
+        position: absolute;
+        right: -50px;
+        top: -50px;
+        width: 250px;
+        height: 250px;
+        background: radial-gradient(circle, rgba(232, 28, 255, 0.3) 0%, transparent 70%);
+        border-radius: 50%;
+        filter: blur(30px);
+        z-index: 1;
+    }
+    .hero-title {
+        position: relative;
+        z-index: 2;
+        font-size: 2.8rem;
         font-weight: 800;
-        background: linear-gradient(135deg, #a5f3fc 0%, #00f2fe 30%, #40c9ff 60%, #e81cff 100%);
+        background: linear-gradient(135deg, #ffffff 20%, #38bdf8 60%, #e81cff 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        margin-bottom: 0.2rem;
-        letter-spacing: -0.02em;
+        margin-bottom: 0.5rem;
+        letter-spacing: -0.03em;
     }
-    
-    .glow-subtitle {
+    .hero-subtitle {
+        position: relative;
+        z-index: 2;
         color: #94a3b8;
-        font-size: 1.05rem;
-        margin-bottom: 2rem;
+        font-size: 1.1rem;
+        font-weight: 400;
     }
 
-    /* 玻璃拟态面板 Container */
+    /* 2. 玻璃拟态卡片容器 */
     div[data-testid="stVerticalBlock"] > div[style*="flex"] {
-        background: rgba(255, 255, 255, 0.03) !important;
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
+        background: rgba(15, 23, 42, 0.65) !important;
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
         border-radius: 16px !important;
-        padding: 1.5rem !important;
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        padding: 1.8rem !important;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
     }
 
-    /* 指标卡片 (Metrics) 样式 */
-    [data-testid="stMetricValue"] {
-        font-size: 1.8rem !important;
-        font-weight: 700 !important;
-        color: #38bdf8 !important;
-        text-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+    /* 3. 彻底修复计算模式单选框（Radio）看不清的问题 */
+    div[role="radiogroup"] {
+        background: rgba(30, 41, 59, 0.7) !important;
+        padding: 14px 20px !important;
+        border-radius: 14px !important;
+        border: 1px solid rgba(56, 189, 248, 0.3) !important;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+    }
+    div[role="radiogroup"] label {
+        color: #ffffff !important;
+        font-weight: 600 !important;
+        font-size: 1.05rem !important;
+    }
+    div[role="radiogroup"] span {
+        color: #ffffff !important;
+    }
+
+    /* 4. 彻底消除表格（DataFrame）的突兀白色底色 */
+    .stDataFrame, [data-testid="stDataFrame"], [data-testid="stTable"] {
+        background-color: #0f172a !important;
+        border-radius: 12px !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        overflow: hidden;
+    }
+    iframe[data-testid="stDataFrame"] {
+        background-color: #0f172a !important;
     }
     
+    /* 5. 指标卡片与按钮美化 */
+    [data-testid="stMetricValue"] {
+        font-size: 2rem !important;
+        font-weight: 800 !important;
+        color: #38bdf8 !important;
+        text-shadow: 0 0 15px rgba(56, 189, 248, 0.5);
+    }
     [data-testid="stMetricLabel"] {
-        color: #cbd5e1 !important;
-        font-size: 0.9rem !important;
+        color: #94a3b8 !important;
+        font-size: 0.95rem !important;
     }
 
-    /* 炫彩渐变悬浮按钮 */
     .stButton > button {
-        background: linear-gradient(135deg, #7000ff 0%, #00f2fe 100%) !important;
+        background: linear-gradient(135deg, #7c3aed 0%, #06b6d4 100%) !important;
         color: #ffffff !important;
         font-weight: 700 !important;
+        font-size: 1.1rem !important;
         border: none !important;
         border-radius: 12px !important;
-        padding: 0.75rem 1.5rem !important;
-        box-shadow: 0 0 20px rgba(112, 0, 255, 0.4) !important;
+        padding: 0.85rem 2rem !important;
+        box-shadow: 0 0 25px rgba(124, 58, 237, 0.5) !important;
         transition: all 0.3s ease !important;
     }
     .stButton > button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 0 30px rgba(0, 242, 254, 0.7) !important;
-    }
-
-    /* 单选框 (Radio Buttons) 样式 */
-    div[role="radiogroup"] {
-        background: rgba(255, 255, 255, 0.02) !important;
-        padding: 10px;
-        border-radius: 12px;
-        border: 1px solid rgba(255, 255, 255, 0.05);
-    }
-
-    /* 表格样式 */
-    div[data-testid="stDataFrame"], div[data-testid="stTable"] {
-        background: rgba(15, 23, 42, 0.6) !important;
-        backdrop-filter: blur(12px);
-        border-radius: 12px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 0 35px rgba(6, 182, 212, 0.8) !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# 页面 UI 头部
+# 页面主视觉 Header 呈现
 # -----------------------------------------------------------------------------
-st.markdown('<div class="glow-title">🔮 Portfolio Rebalancing Vision</div>', unsafe_allow_html=True)
-st.markdown('<div class="glow-subtitle">智能多资产独立定投与仓位规划算法模型</div>', unsafe_allow_html=True)
+st.markdown("""
+<div class="hero-container">
+    <div class="hero-title">🔮 Portfolio Rebalancing Vision</div>
+    <div class="hero-subtitle">Advanced Multi-Asset Independent Rebalancing & Smart Allocation Engine</div>
+</div>
+""", unsafe_allow_html=True)
 
 # 1. 基础总资产设置
 total_v0 = st.number_input("总初始资产 (Total Portfolio Value $)", value=100000.0, step=1000.0, format="%.2f")
@@ -344,7 +388,7 @@ if st.button("🚀 开始极速计算 (Calculate)", type="primary", use_containe
             period_invest = 0
             for item in sim_data:
                 if p <= item['periods']:
-                    curr_stocks[item['ticker']] += item['amount']
+                    curr_stocks[item['ticker']} += item['amount']
                     period_invest += item['amount']
             
             curr_v += period_invest
