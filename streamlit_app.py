@@ -388,7 +388,7 @@ if st.button("🚀 开始极速计算 (Calculate)", type="primary", use_containe
             period_invest = 0
             for item in sim_data:
                 if p <= item['periods']:
-                    curr_stocks[item['ticker'] += item['amount']
+                    curr_stocks[item['ticker']} += item['amount']
                     period_invest += item['amount']
             
             curr_v += period_invest
