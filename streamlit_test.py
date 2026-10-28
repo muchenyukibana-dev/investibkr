@@ -10,7 +10,7 @@ st.set_page_config(
 )
 
 # -----------------------------------------------------------------------------
-# 深度定制 CSS：弥散科技感风格 + 卡片式并排模式选择 + 发光容器
+# 深度定制 CSS：弥散科技感风格 + 卡片式并排单选按钮
 # -----------------------------------------------------------------------------
 st.markdown("""
 <style>
@@ -62,16 +62,6 @@ st.markdown("""
         font-weight: 400;
     }
 
-    /* 总初始资产发光玻璃容器 */
-    .glow-asset-box {
-        background: rgba(15, 23, 42, 0.85);
-        border: 1px solid rgba(0, 242, 254, 0.4);
-        box-shadow: 0 0 25px rgba(0, 242, 254, 0.15), inset 0 0 15px rgba(0, 242, 254, 0.05);
-        border-radius: 16px;
-        padding: 1.5rem;
-        margin-bottom: 1.5rem;
-    }
-
     /* 玻璃拟态卡片容器区块 */
     div[data-testid="stVerticalBlock"] > div[style*="flex"] {
         background: rgba(15, 23, 42, 0.7) !important;
@@ -83,25 +73,60 @@ st.markdown("""
         box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
     }
 
-    /* 确认计算按钮强制占满整行并具备炫彩发光 */
-    .stFormSubmitButton {
-        width: 100% !important;
+    /* 将水平单选框精修改造为高级并排卡片按钮 */
+    div[role="radiogroup"] {
+        display: flex !important;
+        gap: 20px !important;
+        background: transparent !important;
+        padding: 0 !important;
+        border: none !important;
+        box-shadow: none !important;
     }
+    div[role="radiogroup"] > label {
+        flex: 1 !important;
+        background: linear-gradient(145deg, rgba(30, 27, 75, 0.6) 0%, rgba(15, 23, 42, 0.8) 100%) !important;
+        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+        border-radius: 16px !important;
+        padding: 22px 20px !important;
+        text-align: center !important;
+        cursor: pointer !important;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4) !important;
+        margin: 0 !important;
+    }
+    div[role="radiogroup"] > label:hover {
+        border-color: rgba(0, 242, 254, 0.6) !important;
+        transform: translateY(-3px);
+        box-shadow: 0 15px 35px rgba(0, 242, 254, 0.2) !important;
+    }
+    /* 选中状态的卡片高亮与发光边框 */
+    div[role="radiogroup"] input:checked + div,
+    div[role="radiogroup"] > label:has(input:checked) {
+        border-color: #00f2fe !important;
+        background: linear-gradient(135deg, rgba(112, 0, 255, 0.4) 0%, rgba(0, 242, 254, 0.3) 100%) !important;
+        box-shadow: 0 0 30px rgba(0, 242, 254, 0.4) !important;
+    }
+    div[role="radiogroup"] label p, div[role="radiogroup"] label span {
+        color: #ffffff !important;
+        font-weight: 700 !important;
+        font-size: 1.05rem !important;
+    }
+
+    /* 提交确认按钮美化 */
     .stFormSubmitButton > button {
         background: linear-gradient(135deg, #7c3aed 0%, #06b6d4 100%) !important;
         color: #ffffff !important;
         font-weight: 700 !important;
-        font-size: 1.1rem !important;
         border: none !important;
-        border-radius: 14px !important;
-        padding: 1rem 2rem !important;
+        border-radius: 12px !important;
+        padding: 0.85rem 2rem !important;
         width: 100% !important;
-        box-shadow: 0 0 30px rgba(124, 58, 237, 0.6) !important;
+        box-shadow: 0 0 25px rgba(124, 58, 237, 0.5) !important;
         transition: all 0.3s ease !important;
     }
     .stFormSubmitButton > button:hover {
         transform: translateY(-2px);
-        box-shadow: 0 0 40px rgba(6, 182, 212, 0.9) !important;
+        box-shadow: 0 0 35px rgba(6, 182, 212, 0.8) !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -116,71 +141,20 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# -----------------------------------------------------------------------------
-# 并排等分的计算模式选择卡片（带悬停与点击交互效果）
-# -----------------------------------------------------------------------------
-st.markdown("### 选择计算模式 (Calculation Mode)")
+# 1. 模式选择（改造成并排等分的精美卡片按钮）
+calc_mode = st.radio(
+    "选择计算模式 (Calculation Mode)", 
+    [
+        "模式一：定投金额 ➔ 求期数\n给定各基金定投金额，计算各自达标所需期数", 
+        "模式二：期望期数 ➔ 求定投额\n给定各基金期望期数，计算各自每期定投金额"
+    ],
+    horizontal=True,
+    label_visibility="collapsed"
+)
 
-# 初始化选中的模式状态
-if "selected_mode" not in st.session_state:
-    st.session_state.selected_mode = "mode_1"
+is_mode_1 = "模式一" in calc_mode
 
-col_mode1, col_mode2 = st.columns(2)
-
-# 自定义卡片样式（动态响应选中状态）
-with col_mode1:
-    is_active_1 = st.session_state.selected_mode == "mode_1"
-    bg_1 = "linear-gradient(135deg, rgba(124, 58, 237, 0.4), rgba(6, 182, 212, 0.4))" if is_active_1 else "rgba(30, 41, 59, 0.6)"
-    border_1 = "2px solid #06b6d4" if is_active_1 else "1px solid rgba(255, 255, 255, 0.1)"
-    
-    st.markdown(f"""
-    <div style="
-        background: {bg_1};
-        border: {border_1};
-        border-radius: 14px;
-        padding: 20px;
-        text-align: center;
-        cursor: pointer;
-        box-shadow: {'0 0 20px rgba(6, 182, 212, 0.4)' if is_active_1 else 'none'};
-        transition: all 0.3s ease;
-    ">
-        <div style="font-size: 1.1rem; font-weight: 700; color: #ffffff; margin-bottom: 6px;">模式一：定投金额 ➔ 求期数</div>
-        <div style="font-size: 0.85rem; color: #94a3b8;">给定各基金定投金额，计算各自达标所需期数</div>
-    </div>
-    """, unsafe_allow_html=True)
-    if st.button("👉 切换到模式一", use_container_width=True, key="btn_mode_1"):
-        st.session_state.selected_mode = "mode_1"
-        st.rerun()
-
-with col_mode2:
-    is_active_2 = st.session_state.selected_mode == "mode_2"
-    bg_2 = "linear-gradient(135deg, rgba(124, 58, 237, 0.4), rgba(6, 182, 212, 0.4))" if is_active_2 else "rgba(30, 41, 59, 0.6)"
-    border_2 = "2px solid #06b6d4" if is_active_2 else "1px solid rgba(255, 255, 255, 0.1)"
-    
-    st.markdown(f"""
-    <div style="
-        background: {bg_2};
-        border: {border_2};
-        border-radius: 14px;
-        padding: 20px;
-        text-align: center;
-        cursor: pointer;
-        box-shadow: {'0 0 20px rgba(6, 182, 212, 0.4)' if is_active_2 else 'none'};
-        transition: all 0.3s ease;
-    ">
-        <div style="font-size: 1.1rem; font-weight: 700; color: #ffffff; margin-bottom: 6px;">模式二：期望期数 ➔ 求定投额</div>
-        <div style="font-size: 0.85rem; color: #94a3b8;">给定各基金期望期数，计算各自每期定投金额</div>
-    </div>
-    """, unsafe_allow_html=True)
-    if st.button("👉 切换到模式二", use_container_width=True, key="btn_mode_2"):
-        st.session_state.selected_mode = "mode_2"
-        st.rerun()
-
-is_mode_1 = (st.session_state.selected_mode == "mode_1")
-
-st.markdown("---")
-
-# 初始化双模式各自独立的 Session State 数据
+# 2. 初始化双模式各自独立的 Session State 数据
 if "funds_df_mode1" not in st.session_state:
     st.session_state.funds_df_mode1 = pd.DataFrame([
         {"Ticker / Name": "QQQ", "Current Value ($)": 8000.0, "Target Ratio (%)": 10.0, "Amount/Period ($)": 2000.0},
@@ -193,21 +167,16 @@ if "funds_df_mode2" not in st.session_state:
         {"Ticker / Name": "VOO", "Current Value ($)": 6000.0, "Target Ratio (%)": 35.0, "Target Periods": 10}
     ])
 
-# -----------------------------------------------------------------------------
-# 使用 Form 统一填写并提交计算
-# -----------------------------------------------------------------------------
+# 3. 使用 st.form 将参数填写与提交打包
 with st.form("rebalance_form"):
-    
-    # 总初始资产发光容器包裹
-    st.markdown('<div class="glow-asset-box">', unsafe_allow_html=True)
     st.subheader("1. 基础全局设置")
     total_v0 = st.number_input("总初始资产 (Total Portfolio Value $)", value=100000.0, step=1000.0, format="%.2f")
-    st.markdown('</div>', unsafe_allow_html=True)
 
+    st.markdown("---")
     st.subheader("2. 各基金详细参数配置（最多30支）")
-    st.markdown(f"💡 **当前模式**：{'【模式一：修改定投金额】' if is_mode_1 else '【模式二：修改期望期数】'}。修改完成后，点击下方按钮统一提交计算。")
+    st.markdown(f"💡 **当前处于：{'【模式一：定投金额 ➔ 求期数】' if is_mode_1 else '【模式二：期望期数 ➔ 求定投额】'}**。修改完成后，请点击下方按钮统一提交计算。")
 
-    # 根据当前模式动态展示专属列
+    # 根据当前模式动态展示专属列，无关列彻底不显示
     if is_mode_1:
         column_config = {
             "Ticker / Name": st.column_config.TextColumn("资产代码/名称"),
@@ -239,7 +208,6 @@ with st.form("rebalance_form"):
         )
         st.session_state.funds_df_mode2 = edited_df
 
-    # 占满整行的确认计算按钮
     submitted = st.form_submit_button("✅ 确认计算并录入")
 
 # 限制最多30支
@@ -411,3 +379,8 @@ if submitted:
             for item in sim_data:
                 s_val = curr_stocks[item['ticker']]
                 pct = (s_val / curr_v) * 100 if curr_v > 0 else 0
+                row_data[f"{item['ticker']} Value ($)"] = f"${s_val:,.2f}"
+                row_data[f"{item['ticker']} Allocation (%)"] = f"{pct:.2f}%"
+            schedule_rows.append(row_data)
+            
+        st.dataframe(pd.DataFrame(schedule_rows), use_container_width=True)
