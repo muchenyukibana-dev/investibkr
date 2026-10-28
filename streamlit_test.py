@@ -410,4 +410,4 @@ if submitted:
             }
             for item in sim_data:
                 s_val = curr_stocks[item['ticker']]
-                pct = (s_val / curr_v) *
+                pct = (s_val / curr_v) * 100 if curr_v > 0 else 0
